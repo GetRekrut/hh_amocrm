@@ -17,17 +17,21 @@ $router->get('/', function () use ($router) {
     return $router->app->version();
 });
 
-$router->get('/hh/test', 'AmocrmController@test');
+$router->post('/hh/test', 'TestController@getHook');
 
 //hh
-$router->get('/hh/auth', 'Controller@authHeadHunter');
-$router->get('/hh/refresh_token', 'Controller@refreshToken');
-$router->get('/hh/get_token', 'Controller@getToken');
+$router->get('/hh/auth', 'AccessController@authHeadHunter');
+$router->get('/hh/refresh_token', 'AccessController@refreshToken');
+$router->post('/hh/get_token', 'AccessController@getToken');
 
-$router->post('/hh/set_webhook', 'Controller@setWebHook');
-$router->get('/hh/check_webhook', 'Controller@checkWebHook');
-$router->delete('/hh/delete_webhook', 'Controller@deleteWebHook');
+$router->post('/hh/set_webhook', 'HookController@setWebHook');
+$router->get('/hh/check_webhook', 'HookController@checkWebHook');
+$router->delete('/hh/delete_webhook', 'HookController@deleteWebHook');
 
 $router->get('/hh/check_negotiations', 'ResponseController@checkNegotiations');
 $router->post('/hh/get_hook', 'ResponseController@getHook');
+
+//amocrm
+$router->get('/amocrm/add_applicant', 'AmocrmController@addApplicant');
+
 

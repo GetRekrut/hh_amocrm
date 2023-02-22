@@ -16,7 +16,7 @@ class CreateHooksTable extends Migration
         Schema::create('hooks', function (Blueprint $table) {
             $table->id();
             $table->timestamps();
-            $table->string('topic_id')->nullable();
+            $table->longText('topic_id')->nullable();
             $table->string('resume_id')->nullable();
             $table->string('vacancy_id')->nullable();
             $table->string('employer_id')->nullable();

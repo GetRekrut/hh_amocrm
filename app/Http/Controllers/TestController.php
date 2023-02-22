@@ -7,7 +7,7 @@ use App\Models\Hook;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
-class ResponseController extends AccessController
+class TestController extends AccessController
 {
 
     public $access_token;
@@ -19,7 +19,6 @@ class ResponseController extends AccessController
     public function getHook(Request $request){
 
         $request = $request->all();
-        exit(200);
 
         try {
 
@@ -56,6 +55,7 @@ class ResponseController extends AccessController
             }
 
         } catch (\Exception $e) {
+            $error = $e->getMessage();
             $this->sendTelegram('Ошибка записи хука hh_crc: '.$e->getLine().' - '. $e->getMessage());
         }
 
@@ -86,7 +86,7 @@ class ResponseController extends AccessController
                     'Content-Type' => 'application/x-www-form-urlencoded',
                     'Authorization' => 'Bearer '.$this->manager_access_token
                 ])
-                    ->put($info['action_invite']['url'].'?message='.$info['message'].'&send_sms=true');
+                    ->put($info['action_invite']['url'].'?message='.$info['messages']['text_email'].'&send_sms=true');
 
                 $hook->status_invite_hh = 'set';
                 $hook->save();
@@ -112,7 +112,7 @@ class ResponseController extends AccessController
                 ->get('https://api.hh.ru/resumes/'.$resume_id);
 
             $resume = json_decode($response_raw->body(), true);
-//            var_dump($resume);
+//            dd($resume);
 
             if (!empty($resume['description']) and $resume['description'] == 'Not Found'){
                 //если резюме удалено или скрыто
@@ -176,7 +176,7 @@ class ResponseController extends AccessController
 
             //получаем параметры $id_template и $id_action
             $params = $this->getAgeParams($this->area, $this->age);
-//            dd($params);
+
             $templates = $response['templates'];
 
             foreach ($templates as $template){
@@ -189,7 +189,7 @@ class ResponseController extends AccessController
             }
 
             //текст приглоса строка
-            $message = $this->getTextMessage($template_url);
+            $messages = $this->getTextMessage($template_url);
 
             $actions = $response['actions'];
 
@@ -202,8 +202,7 @@ class ResponseController extends AccessController
                 }
             }
 
-            $info = [ 'message' => $message, 'action_invite' => $action_invite ];
-
+            $info = [ 'messages' => $messages, 'action_invite' => $action_invite ];
 
         } catch (\Exception $e) {
             $this->sendTelegram('Ошибка просмотра отклика hh_crc: '.$e->getLine().' - '. $e->getMessage());
@@ -226,7 +225,12 @@ class ResponseController extends AccessController
                 ->get($url);
 
             $response = json_decode($response->body(), true);
-            $message = $response['sms']['text'];
+
+            $message = [];
+            $text_email = $response['mail']['text'] ?? '';
+            $text_sms = $response['sms']['text'] ?? '';
+            $message['text_email'] = $text_email;
+            $message['text_sms'] = $text_sms;
 
         } catch (\Exception $e) {
             $error = $e->getMessage();

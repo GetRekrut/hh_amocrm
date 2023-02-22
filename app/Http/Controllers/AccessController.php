@@ -3,21 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Models\Access;
+use Illuminate\Support\Facades\Log;
 use Mockery\Exception;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+
 
 class AccessController extends Controller
 {
 
-    public function getToken(){
+    public $id_manager_admin = null;
+    public $id_manager_vlad = null;
 
-        $account_info = Access::where('source_name', 'hh_t')->first();
+    public function getToken(Request $request){
+
+        $request = $request->all();
+
+        $account_info = Access::where('manager_id', $request['manager_id'])->first();
+//        dd($account_info);
 
         try {
 
             $response = Http::withHeaders([
-                'User-Agent' => 'amocrm/1.0 (vladislav.fixnation@gmail.com)',
+                'User-Agent' => 'amocrm-dev/1.0 (vladislav.fixnation@gmail.com)',
                 'Content-Type' => 'application/x-www-form-urlencoded',
-                'Authorization' => 'Bearer '.$account_info->access_token
+//                'Authorization' => 'Bearer '.$account_info->access_token
             ])
                 ->asForm()
                 ->post('https://hh.ru/oauth/token', [
@@ -25,51 +35,93 @@ class AccessController extends Controller
                     'client_id' => $account_info->client_id,
                     'client_secret' => $account_info->client_secret,
                     'redirect_uri' => $account_info->redirect_uri,
-                    'code' => $account_info->code,
+                    'code' => $request['code'],
                 ]);
+
+            $tokens = json_decode($response->body(), true);
+
+            if (!empty($tokens['access_token'])){
+
+                $account_info->access_token = $tokens['access_token'];
+                $account_info->refresh_token = $tokens['refresh_token'];
+                $account_info->code = $request['code'];
+                $account_info->save();
+            }
 
         } catch (Exception $e){
 
             $error = $e->getMessage();
-            $this->sendTelegram('Ошибка получение токена hh cour: '.$error);
-        }
-
-        $tokens = json_decode($response->body(), true);
-        var_dump($tokens);
-
-        if (!empty($tokens['access_token'])){
-
-            $account_info->access_token = $tokens['access_token'];
-            $account_info->refresh_token = $tokens['refresh_token'];
-            $account_info->save();
+            $this->sendTelegram('Ошибка получение токена hh cour: '.$e->getLine().' - '. $e->getMessage());
+            Log::warning('code: '.$request['code']);
         }
     }
 
-    public function refreshToken(){
+    public function refreshToken(string $manager_id){
 
-        $account_info = Access::where('source_name', 'hh_t')->first();
+        $account_info = Access::where('manager_id', $manager_id)->first();
 
-        $response = Http::withHeaders([
-            'User-Agent' => 'amocrm/1.0 (vladislav.fixnation@gmail.com)',
-            'Content-Type' => 'application/x-www-form-urlencoded',
+        try {
+
+            $response = Http::withHeaders([
+                'User-Agent' => 'amocrm/1.0 (vladislav.fixnation@gmail.com)',
+                'Content-Type' => 'application/x-www-form-urlencoded',
 //            'Authorization' => 'Bearer '.$account_info->access_token
-        ])
-            ->asForm()
-            ->post('https://hh.ru/oauth/token', [
-                'grant_type' => 'refresh_token',
-                'refresh_token' => $account_info->refresh_token,
-            ]);
+            ])
+                ->asForm()
+                ->post('https://hh.ru/oauth/token', [
+                    'grant_type' => 'refresh_token',
+                    'refresh_token' => $account_info->refresh_token,
+                ]);
 
-        $tokens = json_decode($response->body(), true);
-        var_dump($tokens);
+            $tokens = json_decode($response->body(), true);
 
+            if (!empty($tokens['access_token'])){
+
+                $account_info->access_token = $tokens['access_token'];
+                $account_info->refresh_token = $tokens['refresh_token'];
+                $account_info->save();
+            }
+
+            Log::info($tokens);
+
+        } catch (Exception $e){
+            $error = $e->getMessage();
+            $this->sendTelegram('Ошибка обновления токена hh cour: '.$e->getLine().' - '. $e->getMessage());
+        }
     }
 
-    public function getKeys($source_name){
+    //получение токена учетки которая ответственная за вакансию, для авторизации и ответа с этой учетки
+    public function getManagerToken($vacancy_id, $employer_id){
 
-        $account_info = Access::where('source_name', $source_name)->first();
+        try {
 
-        return $account_info;
+            // ищем доступ по employer_id, это что-то типа идентификатора кабинета
+            $account_info = Access::where('employer_id', $employer_id)->first();
+
+            if (!empty($vacancy_id)){
+
+                $response = Http::withHeaders([
+                    'HH-User-Agent' => 'amocrm/1.0 (vladislav.fixnation@gmail.com)',
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer '.$account_info->access_token
+                ])
+                    ->get('https://api.hh.ru/vacancies/'.$vacancy_id);
+
+                $response = json_decode($response->body(), true);
+                
+                $manager_id = $response['manager']['id'];
+
+                $manager_info = Access::where('manager_id', $manager_id)->first();
+
+                if (!empty($manager_info)) return $manager_info;
+
+                else return false;
+            }
+
+        } catch (Exception $e){
+            $error = $e->getMessage();
+            $this->sendTelegram('Ошибка получения токена менеджера hh cour: '.$e->getLine().' - '. $e->getMessage());
+        }
 
     }
 
@@ -88,10 +140,9 @@ class AccessController extends Controller
 
         try {
             $ufee->account;
-        } catch (\Exception $exception) {
-            var_dump($exception);
-//            $error = $e->getMessage();
-//            $this->sendTelegram('Ошибка авторизации tilda_courier: ' . $error);
+        } catch (\Exception $e) {
+            $error = $e->getMessage();
+            $this->sendTelegram('Ошибка авторизации hh_crc: '.$e->getLine().' - '. $e->getMessage());
         }
 
         return $ufee;

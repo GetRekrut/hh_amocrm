@@ -17,12 +17,14 @@ class CreateAccessesTable extends Migration
             $table->id();
             $table->timestamps();
             $table->string('source_name')->nullable();
+            $table->string('employer_id')->nullable();
             $table->string('client_id')->nullable();
             $table->string('client_secret')->nullable();
             $table->string('redirect_uri')->nullable();
             $table->text('code')->nullable();
             $table->text('access_token')->nullable();
             $table->text('refresh_token')->nullable();
+            $table->string('refresh_token')->nullable();
         });
     }
 
